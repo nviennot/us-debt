@@ -1,0 +1,10 @@
+[project]
+name = "us-debt"
+version = "0.1.0"
+description = "Weekly US Treasury debt and interest cost, broken down by bond term."
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.0",
+    "truststore>=0.10",
+]
