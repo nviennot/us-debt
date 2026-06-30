@@ -64,3 +64,7 @@ npm run dev
 
 This serves the app (consuming `results.json`) at the URL Vite prints
 (by default <http://localhost:5173>).
+
+## License
+
+[MIT](LICENSE)
