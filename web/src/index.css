@@ -13,6 +13,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -240,6 +241,24 @@ header p {
   .chart-legend {
     left: 12px;
   }
+
+  /* Stack the initial (no-messages) inputs: name, then a taller message box,
+     then the send button, each on its own line. */
+  .suggestion-row-initial {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .suggestion-row-initial input[type="text"].name-input,
+  .suggestion-row-initial input[type="text"]:not(.name-input) {
+    flex: 0 0 auto;
+    height: 42px;
+    min-height: 0;
+  }
+
+  .suggestion-row-initial button {
+    align-self: stretch;
+  }
 }
 
 .site-footer {
@@ -268,5 +287,137 @@ header p {
 
 .footer-links a:hover {
   color: var(--text);
+}
+
+.footer-area {
+  /* Break out of the .container's horizontal padding to span full width */
+  margin: 40px calc(50% - 50vw) -64px;
+  padding: 36px calc(50vw - 50%) 48px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.suggestion-box {
+  margin: 8px 0 24px;
+}
+
+.suggestion-chat {
+  max-width: 640px;
+  margin: 0 auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.suggestion-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-title {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.suggestion-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 2px;
+  margin-bottom: 12px;
+}
+
+.chat-line {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.chat-prefix {
+  font-weight: 600;
+}
+
+.chat-line-visitor .chat-prefix {
+  color: #2563eb;
+}
+
+.chat-line-owner .chat-prefix {
+  color: #10b981;
+}
+
+.chat-awaiting {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.suggestion-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.suggestion-box input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.suggestion-box input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.suggestion-box input.name-input {
+  flex: 0 0 120px;
+}
+
+.suggestion-box button {
+  flex: none;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.suggestion-box button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.suggestion-box button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.suggestion-status {
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.suggestion-error {
+  color: #f87171;
 }
 

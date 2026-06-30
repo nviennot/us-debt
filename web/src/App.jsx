@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   AreaChart,
   Area,
@@ -320,6 +320,213 @@ const TelegramIcon = () => (
   </svg>
 );
 
+// URL of the Cloudflare Worker that relays feedback to the Telegram group.
+// Override per-environment with VITE_FEEDBACK_URL.
+const FEEDBACK_URL = "https://bot.usdebt.watch";
+
+// Stable per-browser id used to privately match a reply back to this visitor.
+// Generated once and persisted in localStorage, independent of submissions.
+function getVisitorId() {
+  let id = localStorage.getItem("visitorId");
+  if (!id) {
+    const bytes = crypto.getRandomValues(new Uint8Array(18));
+    id = btoa(String.fromCharCode(...bytes));
+    localStorage.setItem("visitorId", id);
+  }
+  return id;
+}
+
+// Short two-tone chime via Web Audio, so no asset file is needed.
+function playReplySound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const t = now + i * 0.12;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.15, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+    setTimeout(() => ctx.close(), 600);
+  } catch {
+    // ignore audio failures
+  }
+}
+
+function SuggestionBox() {
+  const [name, setName] = useState(() => localStorage.getItem("visitorName") || "");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | sending | error
+  const [messages, setMessages] = useState([]);
+  const threadRef = useRef(null);
+  // Number of owner replies last seen; used to detect new ones for the sound.
+  // null until the initial load completes, so existing replies don't chime.
+  const ownerCountRef = useRef(null);
+
+  // Play a chime when a new owner reply arrives (not on the first load).
+  useEffect(() => {
+    const ownerCount = messages.filter((m) => m.from === "owner").length;
+    if (ownerCountRef.current === null) {
+      ownerCountRef.current = ownerCount;
+      return;
+    }
+    if (ownerCount > ownerCountRef.current) playReplySound();
+    ownerCountRef.current = ownerCount;
+  }, [messages]);
+
+  // Fetch the latest thread from the Worker.
+  const refresh = useCallback(async () => {
+    const visitorId = getVisitorId();
+    try {
+      const resp = await fetch(
+        `${FEEDBACK_URL}/messages?visitor_id=${encodeURIComponent(visitorId)}`
+      );
+      const data = await resp.json();
+      if (Array.isArray(data.messages)) {
+        // Never let a lagging server response drop optimistic local messages.
+        setMessages((local) =>
+          data.messages.length >= local.length ? data.messages : local
+        );
+      }
+    } catch {
+      // ignore transient errors
+    }
+  }, []);
+
+  // Load the existing thread once on mount.
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Poll: every 3s for the first minute after the visitor's last message,
+  // otherwise every 10s.
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    const fast =
+      last?.from === "visitor" && Date.now() - (last.ts ?? 0) < 60000;
+    const id = setInterval(refresh, fast ? 3000 : 10000);
+    return () => clearInterval(id);
+  }, [refresh, messages.length, messages[messages.length - 1]?.from]);
+
+  // Keep the thread scrolled to the latest message.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!message.trim() || status === "sending") return;
+    if (messages.length === 0 && !name.trim()) return;
+    setStatus("sending");
+
+    const visitorId = getVisitorId();
+    const text = message.trim();
+    const visitorName = name.trim();
+    if (visitorName) localStorage.setItem("visitorName", visitorName);
+    // Optimistically show the message right away.
+    setMessages((m) => [...m, { from: "visitor", text, ts: Date.now() }]);
+    setMessage("");
+
+    try {
+      const resp = await fetch(FEEDBACK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitor_id: visitorId,
+          name: visitorName,
+          message: text,
+        }),
+      });
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      if (Array.isArray(data.messages)) setMessages(data.messages);
+      setStatus("idle");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="suggestion-box">
+      <div className="suggestion-title">Suggestions & feedback</div>
+      <div className="suggestion-chat">
+        {messages.length > 0 && (
+          <div className="suggestion-thread" ref={threadRef}>
+            {messages.map((m, i) => (
+              <div
+                key={i}
+                className={`chat-line ${
+                  m.from === "owner" ? "chat-line-owner" : "chat-line-visitor"
+                }`}
+              >
+                <span className="chat-prefix">
+                  {m.from === "owner" ? "Nico" : name || "You"}&gt;
+                </span>{" "}
+                {m.text}
+              </div>
+            ))}
+            {messages[messages.length - 1]?.from === "visitor" && (
+              <div className="chat-awaiting">Awaiting response...</div>
+            )}
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
+          <div className={`suggestion-row${messages.length === 0 ? " suggestion-row-initial" : ""}`}>
+            {messages.length === 0 && (
+              <input
+                type="text"
+                className="name-input"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (status === "error") setStatus("idle");
+                }}
+                placeholder="Your name"
+                maxLength={60}
+              />
+            )}
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                if (status === "error") setStatus("idle");
+              }}
+              placeholder={messages.length > 0 ? "" : "Message"}
+              maxLength={2000}
+            />
+            <button
+              type="submit"
+              disabled={
+                status === "sending" ||
+                !message.trim() ||
+                (messages.length === 0 && !name.trim())
+              }
+            >
+              {status === "sending" ? "Sending…" : "Send"}
+            </button>
+          </div>
+          {status === "error" && (
+            <span className="suggestion-status suggestion-error">
+              Something went wrong. Please try again.
+            </span>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const debtData = seriesData("debt", 1e12); // trillions
   const interestData = seriesData("interest_cost", 1e9); // billions/year
@@ -367,14 +574,18 @@ function App() {
         caption={<>Sources: {TREASURY_SOURCE} and {FRED_SOURCE} · {SOURCE_CODE}</>}
       />
 
-      <footer className="site-footer">
-        <span>Made by Nicolas Viennot</span>
-        <span className="footer-links">
-          <a href="https://www.linkedin.com/in/nviennot" target="_blank" rel="noreferrer" aria-label="LinkedIn"><LinkedInIcon /></a>
-          <a href="https://github.com/nviennot" target="_blank" rel="noreferrer" aria-label="GitHub"><GitHubIcon /></a>
-          <a href="https://t.me/nviennot" target="_blank" rel="noreferrer" aria-label="Telegram"><TelegramIcon /></a>
-        </span>
-      </footer>
+      <div className="footer-area">
+        <SuggestionBox />
+
+        <footer className="site-footer">
+          <span>Made by Nicolas Viennot</span>
+          <span className="footer-links">
+            <a href="https://www.linkedin.com/in/nviennot" target="_blank" rel="noreferrer" aria-label="LinkedIn"><LinkedInIcon /></a>
+            <a href="https://github.com/nviennot" target="_blank" rel="noreferrer" aria-label="GitHub"><GitHubIcon /></a>
+            <a href="https://t.me/nviennot" target="_blank" rel="noreferrer" aria-label="Telegram"><TelegramIcon /></a>
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }
