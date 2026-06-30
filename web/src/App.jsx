@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-const COLORS = ["#2563eb", "#06b6d4", "#10b981", "#a3c93a"];
+const COLORS = ["#2563eb", "#06b6d4", "#10b981", "#7dc24a"];
 
 // Federal funds rate is an overlay reference line, distinct from the brackets.
 const FED_LABEL = "Fed funds rate";
