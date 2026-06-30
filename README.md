@@ -50,3 +50,17 @@ This reads everything in `data/` and writes `results.json`, a weekly time series
   for inflation
 - `issue_rate` — amount-weighted coupon rate of that period's issuance (%)
 - `fed_rate` — federal funds effective rate (%)
+
+### 4. Launch the web server
+
+The web app lives in `web/`. Install its dependencies and start the local dev
+server:
+
+```sh
+cd web
+npm install
+npm run dev
+```
+
+This serves the app (consuming `results.json`) at the URL Vite prints
+(by default <http://localhost:5173>).

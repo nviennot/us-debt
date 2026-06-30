@@ -118,6 +118,31 @@ header p {
   font-weight: 700;
 }
 
+.chart-divider {
+  border: none;
+  border-top: 1px solid #2a2f3a;
+  margin: 12px 0 0;
+}
+
+.chart-caption {
+  text-align: center;
+  font-size: 13px;
+  color: #9aa3b2;
+  margin-top: 8px;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chart-caption a {
+  color: #9aa3b2;
+  text-decoration: underline dotted;
+}
+
+.chart-caption a:hover {
+  color: var(--text);
+}
+
 .chart-area {
   position: relative;
 }
@@ -206,8 +231,3 @@ header p {
   font-weight: 600;
 }
 
-footer {
-  margin-top: 28px;
-  color: var(--muted);
-  font-size: 13px;
-}

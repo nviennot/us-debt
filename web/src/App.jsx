@@ -121,7 +121,7 @@ function Legend({ extras = [] }) {
   );
 }
 
-function StackedChart({ title, subtitle, data, unit, decimals, yTicks, yDomain }) {
+function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain }) {
   const Tip = makeTooltip(unit, decimals);
   return (
     <div className="chart-panel">
@@ -150,7 +150,7 @@ function StackedChart({ title, subtitle, data, unit, decimals, yTicks, yDomain }
               stroke="#9aa3b2"
               width={56}
             />
-            <Tooltip content={<Tip />} />
+            <Tooltip content={<Tip />} wrapperStyle={{ zIndex: 2 }} />
             {results.labels
               .map((label, b) => ({ label, b }))
               .reverse()
@@ -169,11 +169,17 @@ function StackedChart({ title, subtitle, data, unit, decimals, yTicks, yDomain }
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      {caption && (
+        <>
+          <hr className="chart-divider" />
+          <div className="chart-caption">{caption}</div>
+        </>
+      )}
     </div>
   );
 }
 
-function LineRateChart({ title, subtitle, data, yTicks, yDomain }) {
+function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
   const extras = [{ label: FED_LABEL, color: FED_COLOR }];
   const Tip = makeTooltip("%", 2, false, extras);
   return (
@@ -203,7 +209,7 @@ function LineRateChart({ title, subtitle, data, yTicks, yDomain }) {
               stroke="#9aa3b2"
               width={56}
             />
-            <Tooltip content={<Tip />} />
+            <Tooltip content={<Tip />} wrapperStyle={{ zIndex: 2 }} />
             <Line
               type="monotone"
               dataKey={FED_LABEL}
@@ -229,6 +235,12 @@ function LineRateChart({ title, subtitle, data, yTicks, yDomain }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {caption && (
+        <>
+          <hr className="chart-divider" />
+          <div className="chart-caption">{caption}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -242,6 +254,32 @@ function latestTotal(data) {
   const row = data[data.length - 1];
   return results.labels.reduce((sum, label) => sum + (row[label] ?? 0), 0);
 }
+
+const TREASURY_SOURCE = (
+  <a
+    href="https://fiscaldata.treasury.gov/datasets/treasury-securities-auctions-data/treasury-securities-auctions-data"
+    target="_blank"
+    rel="noreferrer"
+  >
+    US Treasury auction results
+  </a>
+);
+
+const FRED_SOURCE = (
+  <a
+    href="https://fred.stlouisfed.org/series/DFF"
+    target="_blank"
+    rel="noreferrer"
+  >
+    federal funds effective rate (FRED)
+  </a>
+);
+
+const SOURCE_CODE = (
+  <a href="https://github.com/nviennot/us-debt/" target="_blank" rel="noreferrer">
+    Source code on GitHub
+  </a>
+);
 
 function App() {
   const debtData = seriesData("debt", 1e12); // trillions
@@ -264,6 +302,7 @@ function App() {
         decimals={2}
         yTicks={debtTicks}
         yDomain={[0, 32]}
+        caption={<>Marketable debt is ~98% of US debt held by the public<br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
       />
 
       <StackedChart
@@ -274,6 +313,7 @@ function App() {
         decimals={1}
         yTicks={interestTicks}
         yDomain={[0, 1000]}
+        caption={<>Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
       />
 
       <LineRateChart
@@ -282,11 +322,8 @@ function App() {
         data={issueRateData}
         yTicks={rateTicks}
         yDomain={[0, 7]}
+        caption={<>Sources: {TREASURY_SOURCE} and {FRED_SOURCE} · {SOURCE_CODE}</>}
       />
-
-      <footer>
-        Source: US Treasury auction results
-      </footer>
     </div>
   );
 }
