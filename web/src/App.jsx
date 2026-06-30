@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import {
   AreaChart,
   Area,
@@ -38,11 +39,25 @@ function seriesData(yKey, scale) {
 
 const fmtYear = (date) => date.slice(0, 4);
 
-// First sampled date of each year, used as explicit x-axis ticks (one per year).
-function yearTicks() {
-  return results.x.filter(
+// Track whether the viewport is narrow (mobile), re-rendering on resize.
+const mobileQuery = window.matchMedia("(max-width: 700px)");
+function subscribeMobile(cb) {
+  mobileQuery.addEventListener("change", cb);
+  return () => mobileQuery.removeEventListener("change", cb);
+}
+function useIsMobile() {
+  return useSyncExternalStore(subscribeMobile, () => mobileQuery.matches);
+}
+
+// First sampled date of each year, used as explicit x-axis ticks.
+// On mobile, thin to every `step`th year so labels don't crowd. Anchored
+// from the end so the most recent year is always labeled.
+function yearTicks(step = 1) {
+  const firstOfYear = results.x.filter(
     (date, i) => i === 0 || date.slice(0, 4) !== results.x[i - 1].slice(0, 4)
   );
+  const last = firstOfYear.length - 1;
+  return firstOfYear.filter((_, i) => (last - i) % step === 0);
 }
 
 // Tooltip styled like the legend, in label order (top of stack first).
@@ -123,6 +138,7 @@ function Legend({ extras = [] }) {
 
 function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain }) {
   const Tip = makeTooltip(unit, decimals);
+  const isMobile = useIsMobile();
   return (
     <div className="chart-panel">
       <div className="chart-title">{title}</div>
@@ -130,12 +146,12 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
       <div className="chart-area">
         <Legend />
         <ResponsiveContainer width="100%" height={420}>
-          <AreaChart data={data} margin={{ top: 10, right: 8, left: 34, bottom: 0 }}>
+          <AreaChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
               tickFormatter={fmtYear}
-              ticks={yearTicks()}
+              ticks={yearTicks(isMobile ? 3 : 1)}
               interval={0}
               stroke="#9aa3b2"
               angle={-45}
@@ -144,7 +160,11 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
             />
             <YAxis
               orientation="right"
-              tickFormatter={(v) => `$${v.toFixed(0)}${unit}`}
+              tickFormatter={(v) =>
+                unit === "B" && v >= 1000
+                  ? `$${(v / 1000).toFixed(0)}T`
+                  : `$${v.toFixed(0)}${unit}`
+              }
               ticks={yTicks}
               domain={yDomain}
               stroke="#9aa3b2"
@@ -182,6 +202,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
 function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
   const extras = [{ label: FED_LABEL, color: FED_COLOR }];
   const Tip = makeTooltip("%", 2, false, extras);
+  const isMobile = useIsMobile();
   return (
     <div className="chart-panel rate-panel">
       <div className="chart-title">{title}</div>
@@ -189,12 +210,12 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
       <div className="chart-area">
         <Legend extras={extras} />
         <ResponsiveContainer width="100%" height={420}>
-          <LineChart data={data} margin={{ top: 10, right: 8, left: 34, bottom: 0 }}>
+          <LineChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
               tickFormatter={fmtYear}
-              ticks={yearTicks()}
+              ticks={yearTicks(isMobile ? 3 : 1)}
               interval={0}
               stroke="#9aa3b2"
               angle={-45}
@@ -294,6 +315,9 @@ function App() {
 
   return (
     <div className="container">
+      <header>
+        <h1>US Debt Watch</h1>
+      </header>
       <StackedChart
         title="Marketable US Treasury debt"
         subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(debtData).toFixed(2)}T</b></>}

@@ -26,8 +26,9 @@ body {
 }
 
 header h1 {
-  margin: 0 0 4px;
+  margin: 0 0 24px;
   font-size: 28px;
+  text-align: center;
 }
 
 header p {
@@ -155,14 +156,10 @@ header p {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background: rgba(15, 17, 21, 0.60);
+  background: rgba(15, 17, 21, 0.90);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
-}
-
-.rate-panel .chart-legend {
-  transform: translateX(380px);
 }
 
 .chart-legend-item {
@@ -229,5 +226,19 @@ header p {
   padding-top: 6px;
   border-top: 1px solid var(--border);
   font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 32px 6px 64px;
+  }
+
+  .chart-panel {
+    padding: 16px 4px 8px;
+  }
+
+  .chart-legend {
+    left: 12px;
+  }
 }
 
