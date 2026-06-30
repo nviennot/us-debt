@@ -7,16 +7,18 @@ client-side JavaScript.
 
 ```
 Submit:  Browser → POST / → Worker → Telegram sendMessage
-Reply:   You reply in Telegram → POST /webhook → Worker stores reply in KV
+Reply:   You reply in Telegram → POST /webhook → Worker stores reply in a Durable Object
 Show:    Browser → GET /reply?visitor_id=… → Worker returns the reply
 ```
 
 Each browser generates a random **visitor id** once and keeps it in
-`localStorage`. Submissions carry that id. The Worker stores it in KV and
-remembers which Telegram message maps to it. When you **reply to that message**
-in the group, Telegram's webhook delivers your reply, which the Worker files
-under the visitor id. The page polls `GET /reply` and displays the reply
-privately to that visitor only.
+`localStorage`. Submissions carry that id. The Worker stores it in a Durable
+Object and remembers which Telegram message maps to it. When you **reply to that
+message** in the group, Telegram's webhook delivers your reply, which the Worker
+files under the visitor id. The page polls `GET /reply` and displays the reply
+privately to that visitor only. A Durable Object is used instead of KV because
+it gives strong read-after-write consistency, so replies appear on the next poll
+rather than after KV's eventual-consistency lag.
 
 ## One-time Telegram setup
 
@@ -38,8 +40,8 @@ cd worker
 npm install -g wrangler   # or: npx wrangler ...
 wrangler login
 
-# Create the KV namespace and paste the printed id into wrangler.toml
-wrangler kv namespace create FEEDBACK
+# The Durable Object is created automatically on first `wrangler deploy`
+# (see [[durable_objects.bindings]] and [[migrations]] in wrangler.toml).
 
 # Store secrets (never committed):
 wrangler secret put TELEGRAM_BOT_TOKEN       # paste the BotFather token

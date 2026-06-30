@@ -14,9 +14,13 @@ routes = [
 #   wrangler secret put TELEGRAM_CHAT_ID
 #   wrangler secret put TELEGRAM_WEBHOOK_SECRET
 
-# KV namespace for tickets/replies. Create it with:
-#   wrangler kv namespace create FEEDBACK
-# then paste the printed id below.
-[[kv_namespaces]]
-binding = "FEEDBACK"
-id = "ff40f44cc13b436bbfb0fb80a8a8b1dd"
+# Durable Object holding all threads and message mappings. Unlike KV, a DO
+# provides strong read-after-write consistency, so a reply appears on the very
+# next poll instead of after KV's eventual-consistency lag.
+[[durable_objects.bindings]]
+name = "FEEDBACK_STORE"
+class_name = "FeedbackStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["FeedbackStore"]
