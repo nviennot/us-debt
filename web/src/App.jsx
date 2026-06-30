@@ -362,10 +362,28 @@ function playReplySound() {
   }
 }
 
+// Turn a fetch failure into a more useful, debuggable message.
+// Browsers hide low-level network codes (e.g. net::ERR_NAME_NOT_RESOLVED)
+// from JS: a network-layer failure always surfaces as "TypeError: Failed
+// to fetch" with no detail. We can still narrow it down from context.
+function describeFetchError(err) {
+  // Server errors already carry a status/body message (thrown above).
+  if (err instanceof Error && !(err instanceof TypeError)) {
+    return err.message;
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return "You appear to be offline. Check your internet connection.";
+  }
+  // TypeError from fetch: DNS failure, connection refused, CORS, or the
+  // host being unreachable. The browser does not expose which one.
+  return "Could not reach the server.";
+}
+
 function SuggestionBox() {
   const [name, setName] = useState(() => localStorage.getItem("visitorName") || "");
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | error
+  const [errorDetail, setErrorDetail] = useState("");
   const [messages, setMessages] = useState([]);
   const threadRef = useRef(null);
   // Number of owner replies last seen; used to detect new ones for the sound.
@@ -448,15 +466,22 @@ function SuggestionBox() {
           message: text,
         }),
       });
-      if (!resp.ok) throw new Error();
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        throw new Error(
+          `Server responded ${resp.status} ${resp.statusText}` +
+            (body ? `: ${body.slice(0, 200)}` : "")
+        );
+      }
       const data = await resp.json();
       if (Array.isArray(data.messages)) setMessages(data.messages);
       setStatus("idle");
-    } catch {
+    } catch (err) {
       // Purge the optimistic message from the local cache so it reflects
       // the server, and restore the text so the visitor can retry.
       setMessages((m) => m.filter((msg) => msg !== optimistic));
       setMessage(text);
+      setErrorDetail(describeFetchError(err));
       setStatus("error");
     }
   }
@@ -524,6 +549,7 @@ function SuggestionBox() {
           {status === "error" && (
             <span className="suggestion-status suggestion-error">
               Something went wrong. Please try again.
+              {errorDetail ? ` (${errorDetail})` : ""}
             </span>
           )}
         </form>
