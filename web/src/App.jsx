@@ -49,6 +49,84 @@ function useIsMobile() {
   return useSyncExternalStore(subscribeMobile, () => mobileQuery.matches);
 }
 
+// Make horizontal scrubbing exclusive: once a touch gesture is judged to be
+// horizontal, lock out vertical page scroll for the rest of that gesture by
+// preventing the (non-passive) touchmove default. Vertical-first gestures are
+// left to scroll the page, and are stopped from reaching Recharts so they
+// don't activate the tooltip. React's onTouchMove is passive and cannot
+// preventDefault, so the listener is attached imperatively via a ref.
+// Hide every chart's tooltip. Recharts wires tooltip-hide to React's
+// onMouseLeave, which it synthesizes from a native mouseout whose relatedTarget
+// lies outside the chart; document.body satisfies that. Dispatch one per chart.
+function hideAllTooltips() {
+  document.querySelectorAll(".recharts-wrapper").forEach((w) =>
+    w.dispatchEvent(
+      new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })
+    )
+  );
+}
+
+function useHorizontalScrubLock() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let startX = 0;
+    let startY = 0;
+    let axis = null; // null | "x" | "y", decided once per gesture
+
+    const onStart = (e) => {
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      axis = null;
+    };
+    const onMove = (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (axis === null) {
+        // Wait for a small threshold before committing to an axis.
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        // A tooltip may already be showing from the initial touch. Clear it as
+        // the scroll begins (the global scroll listener also covers scrolls
+        // that start outside any chart).
+        if (axis === "y") hideAllTooltips();
+      }
+      if (axis === "x") {
+        // Horizontal scrub: suppress vertical page scroll so it's exclusive.
+        // Let the event reach Recharts so it moves the tooltip.
+        if (e.cancelable) e.preventDefault();
+      } else {
+        // Vertical page scroll: stop the event from reaching Recharts'
+        // (root-delegated) touchmove handler so the tooltip never activates
+        // while scrolling. Capture phase runs before React's root listener.
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false, capture: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove, { capture: true });
+    };
+  }, []);
+  return ref;
+}
+
+// Dismiss any open chart tooltip whenever the page scrolls, including scrolls
+// that begin outside a chart (the per-chart handler only sees its own touches).
+function useDismissTooltipsOnScroll() {
+  useEffect(() => {
+    const onScroll = () => hideAllTooltips();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+}
+
 // First sampled date of each year, used as explicit x-axis ticks.
 // On mobile, thin to every `step`th year so labels don't crowd. Anchored
 // from the end so the most recent year is always labeled.
@@ -139,11 +217,12 @@ function Legend({ extras = [] }) {
 function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain }) {
   const Tip = makeTooltip(unit, decimals);
   const isMobile = useIsMobile();
+  const scrubRef = useHorizontalScrubLock();
   return (
     <div className="chart-panel">
       <div className="chart-title">{title}</div>
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
-      <div className="chart-area">
+      <div className="chart-area" ref={scrubRef}>
         <Legend />
         <ResponsiveContainer width="100%" height={420}>
           <AreaChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
@@ -203,11 +282,12 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
   const extras = [{ label: FED_LABEL, color: FED_COLOR }];
   const Tip = makeTooltip("%", 2, false, extras);
   const isMobile = useIsMobile();
+  const scrubRef = useHorizontalScrubLock();
   return (
     <div className="chart-panel rate-panel">
       <div className="chart-title">{title}</div>
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
-      <div className="chart-area">
+      <div className="chart-area" ref={scrubRef}>
         <Legend extras={extras} />
         <ResponsiveContainer width="100%" height={420}>
           <LineChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
@@ -559,6 +639,7 @@ function SuggestionBox() {
 }
 
 function App() {
+  useDismissTooltipsOnScroll();
   const debtData = seriesData("debt", 1e12); // trillions
   const interestData = seriesData("interest_cost", 1e9); // billions/year
   const issueRateData = seriesData("issue_rate", 1).map((row, i) => ({

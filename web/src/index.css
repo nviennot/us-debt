@@ -147,6 +147,13 @@ header p {
 
 .chart-area {
   position: relative;
+  /* Restrict browser gestures to vertical panning so the JS scrub handler can
+     own horizontal drags (and preventDefault works to lock page scroll). */
+  touch-action: pan-y;
+  /* Don't select chart text/labels while dragging to scrub. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .chart-legend {
