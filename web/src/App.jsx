@@ -434,7 +434,8 @@ function SuggestionBox() {
     const visitorName = name.trim();
     if (visitorName) localStorage.setItem("visitorName", visitorName);
     // Optimistically show the message right away.
-    setMessages((m) => [...m, { from: "visitor", text, ts: Date.now() }]);
+    const optimistic = { from: "visitor", text, ts: Date.now() };
+    setMessages((m) => [...m, optimistic]);
     setMessage("");
 
     try {
@@ -452,6 +453,10 @@ function SuggestionBox() {
       if (Array.isArray(data.messages)) setMessages(data.messages);
       setStatus("idle");
     } catch {
+      // Purge the optimistic message from the local cache so it reflects
+      // the server, and restore the text so the visitor can retry.
+      setMessages((m) => m.filter((msg) => msg !== optimistic));
+      setMessage(text);
       setStatus("error");
     }
   }
