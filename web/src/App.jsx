@@ -405,8 +405,15 @@ const TelegramIcon = () => (
 const FEEDBACK_URL = "https://bot.usdebt.watch";
 
 // Stable per-browser id used to privately match a reply back to this visitor.
-// Generated once and persisted in localStorage, independent of submissions.
+// Read the persisted id without creating one. Returns null until the visitor
+// has sent their first message.
 function getVisitorId() {
+  return localStorage.getItem("visitorId");
+}
+
+// Create the visitor id on first use (the first feedback message) and persist
+// it for future replies. Subsequent calls return the same id.
+function getOrCreateVisitorId() {
   let id = localStorage.getItem("visitorId");
   if (!id) {
     const bytes = crypto.getRandomValues(new Uint8Array(18));
@@ -481,9 +488,11 @@ function SuggestionBox() {
     ownerCountRef.current = ownerCount;
   }, [messages]);
 
-  // Fetch the latest thread from the Worker.
+  // Fetch the latest thread from the Worker. No-op until the visitor has an id
+  // (i.e. has sent their first message).
   const refresh = useCallback(async () => {
     const visitorId = getVisitorId();
+    if (!visitorId) return;
     try {
       const resp = await fetch(
         `${FEEDBACK_URL}/messages?visitor_id=${encodeURIComponent(visitorId)}`
@@ -500,17 +509,20 @@ function SuggestionBox() {
     }
   }, []);
 
-  // Load the existing thread once on mount.
+  // Load the existing thread once on mount, but only for returning visitors
+  // who already have an id. New visitors get one when they first send.
   useEffect(() => {
-    refresh();
+    if (getVisitorId()) refresh();
   }, [refresh]);
 
-  // Poll: every 3s for the first minute after the visitor's last message,
-  // otherwise every 10s.
+  // Poll only while we're waiting on a reply: i.e. the latest message is from
+  // the visitor. Poll every 3s for the first minute after that message, then
+  // every 10s. Don't poll at all before the first message or once the owner
+  // has replied.
   useEffect(() => {
     const last = messages[messages.length - 1];
-    const fast =
-      last?.from === "visitor" && Date.now() - (last.ts ?? 0) < 60000;
+    if (last?.from !== "visitor") return;
+    const fast = Date.now() - (last.ts ?? 0) < 60000;
     const id = setInterval(refresh, fast ? 3000 : 10000);
     return () => clearInterval(id);
   }, [refresh, messages.length, messages[messages.length - 1]?.from]);
@@ -527,7 +539,7 @@ function SuggestionBox() {
     if (messages.length === 0 && !name.trim()) return;
     setStatus("sending");
 
-    const visitorId = getVisitorId();
+    const visitorId = getOrCreateVisitorId();
     const text = message.trim();
     const visitorName = name.trim();
     if (visitorName) localStorage.setItem("visitorName", visitorName);
