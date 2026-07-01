@@ -667,6 +667,9 @@ function App() {
       <header>
         <h1>US Debt Watch</h1>
       </header>
+      <p className="compiled-note">
+        Based on {results.num_auctions.toLocaleString()} Treasury auction results<br/>
+      </p>
       <StackedChart
         title="Marketable US Treasury debt"
         subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(debtData).toFixed(2)}T</b></>}

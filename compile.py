@@ -308,7 +308,9 @@ def compute_weekly_issue_rate(df, week_dates, windows=(8, 13, 21, 26)):
 
 
 def main():
-    df = build_df(load_data())
+    data = load_data()
+    num_auctions = len(data)
+    df = build_df(data)
     cpi = load_cpi()
     debt = compute_daily_debt(df)
 
@@ -342,6 +344,8 @@ def main():
     results = {
         "labels": brackets_labels,
         "x": [d.strftime("%Y-%m-%d") for d in week_dates],
+        "num_auctions": num_auctions,
+        "compiled_date": today.strftime("%Y-%m-%d"),
         "debt": [sampled[i].tolist() for i in range(len(brackets))],
         "interest_cost": [sampled_interest[i].tolist() for i in range(len(brackets))],
         "issue_rate": jsonable(issue_rate),
