@@ -52,7 +52,7 @@ function json(body, status, origin) {
 }
 
 function isValidVisitorId(v) {
-  return typeof v === "string" && /^[a-zA-Z0-9_-]{8,64}$/.test(v);
+  return typeof v === "string" && /^[a-zA-Z0-9_+/=-]{8,64}$/.test(v);
 }
 
 // All state lives in one DO instance. Get a stub for it.
