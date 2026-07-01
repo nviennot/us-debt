@@ -149,6 +149,84 @@ header p {
   font-weight: 700;
 }
 
+.methodology {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.methodology > summary {
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.methodology > summary::-webkit-details-marker {
+  display: none;
+}
+
+.methodology > summary::before {
+  content: "▸";
+  font-size: 28px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.methodology[open] > summary {
+  border-bottom: 1px solid rgba(128, 128, 128, 0.5);
+  padding-bottom: 8px;
+}
+
+.methodology[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.methodology-body {
+  max-width: 800px;
+  margin: 16px auto 4px;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.methodology-body h3 {
+  margin: 20px 0 8px;
+  font-size: 19px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #2a2f3a;
+}
+
+.methodology-body ul {
+  margin-top: -10px;
+}
+
+.methodology-body a {
+  color: #60a5fa;
+  text-decoration: underline dotted;
+  word-break: break-word;
+}
+
+.methodology-body a:hover {
+  color: var(--text);
+}
+
+.methodology-image {
+  display: block;
+  max-width: 700px;
+  width: 100%;
+  height: auto;
+  margin: 8px auto;
+  border-radius: 8px;
+}
+
 .chart-divider {
   border: none;
   border-top: 1px solid #2a2f3a;
@@ -232,6 +310,9 @@ header p {
   font-weight: 600;
   font-size: 12px;
   margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tooltip-row {

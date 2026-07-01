@@ -26,6 +26,7 @@ the shared x dates):
     "interest_cost": [[...W...], ...],          # annual interest cost, dollars/year
     "issue_rate": [[...W...], ...],             # coupon rate of that week's issues, %
     "fed_rate":   [...W...],                     # federal funds effective rate, %
+    "term_hist":  {counts, edges, brackets},     # histogram of bond terms (years)
   }
 
 Each of debt / interest_cost / issue_rate is a list of 4 brackets (matching labels),
@@ -252,6 +253,21 @@ def compute_tips_interest_sampled(tips_df, week_dates, cpi):
     return out
 
 
+def compute_term_histogram(df, max_years=31, bins=500):
+    """Histogram of bond terms (in years) across all auctions.
+
+    Reproduces the "Term breakdown" histogram from debt.ipynb: term is
+    maturity_date - issue_date, and we bin its length in years to see how
+    auctions cluster (which is how the term brackets above are chosen).
+
+    Returns (counts, edges) where counts[i] is the number of auctions whose
+    term falls in [edges[i], edges[i+1]) years.
+    """
+    term_years = df["term"].dt.days.dropna().to_numpy() / YEAR
+    counts, edges = np.histogram(term_years, bins=bins, range=(0, max_years))
+    return counts, edges
+
+
 def compute_weekly_issue_rate(df, week_dates, windows=(8, 13, 21, 26)):
     """Amount-weighted coupon rate of securities issued, over a trailing window.
 
@@ -337,6 +353,9 @@ def main():
     # Federal funds effective rate sampled at each week.
     fed_rate = sample_fed_funds(load_fed_funds(), week_dates)
 
+    # Histogram of bond terms (years) across auctions, for the term breakdown.
+    term_hist_counts, term_hist_edges = compute_term_histogram(df)
+
     def jsonable(arr):
         # JSON has no NaN; emit null for weeks with no issuance.
         return [[None if np.isnan(v) else v for v in row] for row in arr]
@@ -350,6 +369,11 @@ def main():
         "interest_cost": [sampled_interest[i].tolist() for i in range(len(brackets))],
         "issue_rate": jsonable(issue_rate),
         "fed_rate": fed_rate,
+        "term_hist": {
+            "counts": term_hist_counts.tolist(),
+            "edges": term_hist_edges.tolist(),
+            "brackets": (brackets / YEAR).tolist(),
+        },
     }
 
     with open(OUTPUT, "w") as f:
