@@ -47,7 +47,7 @@ function TermHistogram() {
     <div className="chart-panel">
       <ChartTitle title="Distribution of bond terms" />
       <div className="chart-area" ref={scrubRef}>
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={isMobile ? 180 : 240}>
           <BarChart
             data={data}
             margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}
@@ -282,8 +282,7 @@ export default function Methodology() {
         </p>
 
         <h3>Source code</h3>
-        <p>
-          Source code:{" "}
+        <p>All of the code and data used to produce these results are available on GitHub:<br/>
           <a href="https://github.com/nviennot/us-debt/blob/main/download.py" target="_blank" rel="noreferrer">download.py</a>,{" "}
           <a href="https://github.com/nviennot/us-debt/tree/main/data" target="_blank" rel="noreferrer">data/</a>,{" "}
           <a href="https://github.com/nviennot/us-debt/blob/main/compile.py" target="_blank" rel="noreferrer">compile.py</a>,{" "}

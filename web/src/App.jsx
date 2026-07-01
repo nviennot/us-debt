@@ -263,13 +263,13 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
         <Legend />
-        <ResponsiveContainer width="100%" height={420}>
+        <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
           <AreaChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={fmtYear}
-              ticks={yearTicks(isMobile ? 3 : 1)}
+              tickFormatter={(date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
+              ticks={yearTicks(isMobile ? 2 : 1)}
               interval={0}
               stroke="#9aa3b2"
               angle={-45}
@@ -287,6 +287,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
               domain={yDomain}
               stroke="#9aa3b2"
               width={56}
+              interval={0}
             />
             <Tooltip content={<Tip />} wrapperStyle={{ zIndex: 2 }} />
             {results.labels
@@ -327,14 +328,13 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
       <ChartTitle title={title} />
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
-        <Legend extras={extras} />
-        <ResponsiveContainer width="100%" height={420}>
+        <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
           <LineChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={fmtYear}
-              ticks={yearTicks(isMobile ? 3 : 1)}
+              tickFormatter={(date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
+              ticks={yearTicks(isMobile ? 2 : 1)}
               interval={0}
               stroke="#9aa3b2"
               angle={-45}
@@ -346,8 +346,10 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
               tickFormatter={(v) => `${v.toFixed(1)}%`}
               ticks={yTicks}
               domain={yDomain}
+              allowDataOverflow
               stroke="#9aa3b2"
               width={56}
+              interval={0}
             />
             <Tooltip content={<Tip />} wrapperStyle={{ zIndex: 2 }} />
             <Line
@@ -387,7 +389,7 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
 
 const debtTicks = Array.from({ length: 9 }, (_, i) => i * 4); // 0..32T
 const interestTicks = Array.from({ length: 11 }, (_, i) => i * 100); // 0..1000B
-const rateTicks = Array.from({ length: 15 }, (_, i) => i * 0.5); // 0..7% by 0.5%
+const rateTicks = Array.from({ length: 12 }, (_, i) => i * 0.5); // 0..5.5% by 0.5%
 
 // Sum of all bracket values in the most recent row, in display units.
 function latestTotal(data) {
@@ -460,7 +462,7 @@ function App() {
         decimals={1}
         yTicks={interestTicks}
         yDomain={[0, 1000]}
-        caption={<>Observation: <b style={{ color: '#e55' }}>The cost of servicing the debt has tripled between 2022 and 2025</b><br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
+        caption={<>Observation: <b style={{ color: '#e55' }}>The interest cost has tripled between 2022 and 2025</b><br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
       />
 
       <LineRateChart
@@ -468,7 +470,7 @@ function App() {
         subtitle={<>as of {latestDate} fed funds rate is <b className="subtitle-value-white">{results.fed_rate[results.fed_rate.length - 1].toFixed(2)}%</b></>}
         data={issueRateData}
         yTicks={rateTicks}
-        yDomain={[0, 7]}
+        yDomain={[0, 5.5]}
         caption={<>Sources: {TREASURY_SOURCE} and {FRED_SOURCE} · {SOURCE_CODE}</>}
       />
 
