@@ -39,6 +39,36 @@ function seriesData(yKey, scale) {
 
 const fmtYear = (date) => date.slice(0, 4);
 
+// Turn a chart title into a URL-safe anchor id, e.g. "Annual US debt interest
+// cost" -> "annual-us-debt-interest-cost".
+function slugify(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+const LinkIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);
+
+// Chart heading with a permalink anchor. The link icon is revealed on hover
+// and copies/points to #<slug> so a specific chart can be linked to directly.
+function ChartTitle({ title }) {
+  const id = slugify(title);
+  return (
+    <div className="chart-title" id={id}>
+      {title}
+      <a className="chart-permalink" href={`#${id}`} aria-label={`Permalink to ${title}`}>
+        <LinkIcon />
+      </a>
+    </div>
+  );
+}
+
 // Track whether the viewport is narrow (mobile), re-rendering on resize.
 const mobileQuery = window.matchMedia("(max-width: 700px)");
 function subscribeMobile(cb) {
@@ -220,7 +250,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
   const scrubRef = useHorizontalScrubLock();
   return (
     <div className="chart-panel">
-      <div className="chart-title">{title}</div>
+      <ChartTitle title={title} />
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
         <Legend />
@@ -285,7 +315,7 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
   const scrubRef = useHorizontalScrubLock();
   return (
     <div className="chart-panel rate-panel">
-      <div className="chart-title">{title}</div>
+      <ChartTitle title={title} />
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
         <Legend extras={extras} />
@@ -598,7 +628,7 @@ function SuggestionBox() {
               </div>
             ))}
             {messages[messages.length - 1]?.from === "visitor" && (
-              <div className="chat-awaiting">Awaiting response...</div>
+              <div className="chat-awaiting">Nico will reply to you soon</div>
             )}
           </div>
         )}
