@@ -504,11 +504,16 @@ function SuggestionBox() {
   const [messages, setMessages] = useState([]);
   const threadRef = useRef(null);
   // Number of owner replies last seen; used to detect new ones for the sound.
-  // null until the initial load completes, so existing replies don't chime.
+  // null until the first thread load completes, so existing replies (and a
+  // remount/hot-reload that repopulates the thread) don't chime.
   const ownerCountRef = useRef(null);
 
   // Play a chime when a new owner reply arrives (not on the first load).
   useEffect(() => {
+    // Wait for the initial thread to load before establishing a baseline.
+    // The first render has an empty `messages`, so treating that as the
+    // baseline would make the subsequent load look like new replies.
+    if (messages.length === 0) return;
     const ownerCount = messages.filter((m) => m.from === "owner").length;
     if (ownerCountRef.current === null) {
       ownerCountRef.current = ownerCount;
@@ -628,7 +633,7 @@ function SuggestionBox() {
               </div>
             ))}
             {messages[messages.length - 1]?.from === "visitor" && (
-              <div className="chat-awaiting">Nico will reply to you soon</div>
+              <div className="chat-awaiting">Nico will respond soon</div>
             )}
           </div>
         )}
