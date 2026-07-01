@@ -119,7 +119,7 @@ function TermHistogram() {
 export default function Methodology() {
   return (
     <details className="methodology">
-      <summary>Chart methodology &amp; data sources </summary>
+      <summary>Methodology &amp; data sources </summary>
       <div className="methodology-body">
         <h3>Auction results</h3>
         <p>The US Treasury issues debt by selling bills, notes, and bonds at
