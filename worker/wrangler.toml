@@ -24,3 +24,11 @@ class_name = "FeedbackStore"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["FeedbackStore"]
+
+# Native rate limiter for feedback submissions (POST /). Keyed per visitor id
+# (or client IP when the id is missing/invalid). Allow up to 5 submissions per
+# 10-second window; further requests get a 429 until the window rolls over.
+[[ratelimits]]
+name = "SUBMIT_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 3, period = 10 }

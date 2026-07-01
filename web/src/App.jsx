@@ -519,13 +519,13 @@ function SuggestionBox() {
   // the visitor. Poll every 3s for the first minute after that message, then
   // every 10s. Don't poll at all before the first message or once the owner
   // has replied.
+  const last = messages[messages.length - 1];
   useEffect(() => {
-    const last = messages[messages.length - 1];
     if (last?.from !== "visitor") return;
     const fast = Date.now() - (last.ts ?? 0) < 60000;
     const id = setInterval(refresh, fast ? 3000 : 10000);
     return () => clearInterval(id);
-  }, [refresh, messages.length, messages[messages.length - 1]?.from]);
+  }, [refresh, last?.from, last?.ts]);
 
   // Keep the thread scrolled to the latest message.
   useEffect(() => {

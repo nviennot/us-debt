@@ -16,14 +16,18 @@
 //   msg:<message_id>   -> <visitor id>  (links a sent Telegram message to a visitor)
 //
 // Flow:
-//   1. Browser POSTs { visitor_id, message }. We append it to the visitor's
-//      thread, forward it to Telegram, and remember the sent message_id so a
-//      reply to it can be matched back.
+//   1. Browser POSTs { visitor_id, message }. We forward it to Telegram, then
+//      append it to the visitor's thread and remember the sent message_id in a
+//      single atomic write so a reply to it can be matched back.
 //   2. You REPLY to any message in the group. Telegram calls POST /webhook;
 //      we match reply_to_message.message_id -> visitor and append your reply.
 //   3. Browser polls GET /messages?visitor_id=<id> and renders the whole thread.
 
 const MAX_MESSAGE_LENGTH = 2000;
+
+// Keep at most this many messages per thread so a thread can't grow past the
+// Durable Object's per-value size limit. Oldest messages are dropped first.
+const MAX_THREAD_MESSAGES = 200;
 
 // Origins allowed to call this Worker. Update if the site moves.
 const ALLOWED_ORIGINS = [
@@ -33,6 +37,10 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5175",
 ];
+
+function isAllowedOrigin(origin) {
+  return ALLOWED_ORIGINS.includes(origin);
+}
 
 function corsHeaders(origin) {
   const allow = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
@@ -61,11 +69,29 @@ function store(env) {
 }
 
 async function handleSubmit(request, env, origin) {
-  let visitorId, name, message;
+  // CORS is only browser-enforced; enforce the allowlist here so scripted
+  // clients can't invoke the Telegram-forwarding side effect from any origin.
+  if (!isAllowedOrigin(origin)) {
+    return json({ error: "Forbidden origin" }, 403, origin);
+  }
+
+  let body;
   try {
-    ({ visitor_id: visitorId, name, message } = await request.json());
+    body = await request.json();
   } catch {
     return json({ error: "Invalid JSON" }, 400, origin);
+  }
+  const { visitor_id: visitorId, name, message } = body;
+
+  // Native Cloudflare rate limiter (configured in wrangler.toml). Guards against
+  // a single visitor (or a spoofed visitor_id) spamming the Telegram group. Key
+  // on the visitor id when valid, else fall back to the client IP.
+  const rlKey = isValidVisitorId(visitorId)
+    ? visitorId
+    : request.headers.get("CF-Connecting-IP") || "unknown";
+  const { success } = await env.SUBMIT_RATE_LIMITER.limit({ key: rlKey });
+  if (!success) {
+    return json({ error: "Too many messages. Slow down." }, 429, origin);
   }
 
   if (!isValidVisitorId(visitorId)) {
@@ -82,16 +108,21 @@ async function handleSubmit(request, env, origin) {
   const cleanName =
     typeof name === "string" && name.trim() ? name.trim().slice(0, 60) : null;
 
-  // Append the visitor's message to their thread (strongly consistent).
-  const appendResp = await store(env).fetch("https://do/append-visitor", {
-    method: "POST",
-    body: JSON.stringify({ visitorId, text, name: cleanName }),
-  });
-  const { thread } = await appendResp.json();
+  // The name shown in Telegram is fixed on the first message. Read the stored
+  // name (if any) so the prefix is stable, without writing the thread yet.
+  const nameResp = await store(env).fetch(
+    `https://do/thread?visitor_id=${encodeURIComponent(visitorId)}`
+  );
+  const { thread: existing } = await nameResp.json();
+  const displayName = existing.name || cleanName;
 
   // Reply matching uses reply_to_message.message_id (see the msg: mapping),
-  // so no id needs to appear in the message text.
-  const tgText = thread.name ? `${thread.name}> ${text}` : text;
+  // so no id needs to appear in the message text. Send to Telegram first so we
+  // have the message id, then persist the thread and the id->visitor mapping in
+  // a single atomic DO write. This closes the window where the message could be
+  // in the thread while its mapping is missing (which would silently drop the
+  // owner's reply).
+  const tgText = displayName ? `${displayName}> ${text}` : text;
   const tgResp = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
@@ -109,15 +140,15 @@ async function handleSubmit(request, env, origin) {
     return json({ error: "Failed to deliver message" }, 502, origin);
   }
 
-  // Map the sent message id -> visitor so we can match your reply later.
   const sent = await tgResp.json();
-  const messageId = sent?.result?.message_id;
-  if (messageId != null) {
-    await store(env).fetch("https://do/map-message", {
-      method: "POST",
-      body: JSON.stringify({ messageId, visitorId }),
-    });
-  }
+  const messageId = sent?.result?.message_id ?? null;
+
+  // Append the visitor's message and map the sent id -> visitor atomically.
+  const appendResp = await store(env).fetch("https://do/append-visitor", {
+    method: "POST",
+    body: JSON.stringify({ visitorId, text, name: cleanName, messageId }),
+  });
+  const { thread } = await appendResp.json();
 
   return json({ ok: true, messages: thread.messages }, 200, origin);
 }
@@ -183,6 +214,16 @@ export class FeedbackStore {
     return thread;
   }
 
+  // Append a message and cap the thread so it can't grow past the DO's value
+  // size limit. Keep the most recent MAX_THREAD_MESSAGES.
+  appendMessage(thread, message) {
+    thread.messages.push(message);
+    if (thread.messages.length > MAX_THREAD_MESSAGES) {
+      thread.messages = thread.messages.slice(-MAX_THREAD_MESSAGES);
+    }
+    thread.updatedAt = message.ts;
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
 
@@ -193,19 +234,18 @@ export class FeedbackStore {
     }
 
     if (url.pathname === "/append-visitor") {
-      const { visitorId, text, name } = await request.json();
+      const { visitorId, text, name, messageId } = await request.json();
       const thread = await this.getThread(visitorId);
       if (!thread.name && name) thread.name = name;
-      thread.messages.push({ from: "visitor", text, ts: Date.now() });
-      thread.updatedAt = Date.now();
+      this.appendMessage(thread, { from: "visitor", text, ts: Date.now() });
       await this.state.storage.put(`thread:${visitorId}`, thread);
+      // Map the sent Telegram message id -> visitor so a reply to it matches
+      // back. Written together with the append so there's no window where the
+      // message exists in the thread without its mapping.
+      if (messageId != null) {
+        await this.state.storage.put(`msg:${messageId}`, visitorId);
+      }
       return Response.json({ thread });
-    }
-
-    if (url.pathname === "/map-message") {
-      const { messageId, visitorId } = await request.json();
-      await this.state.storage.put(`msg:${messageId}`, visitorId);
-      return Response.json({ ok: true });
     }
 
     if (url.pathname === "/append-owner") {
@@ -213,8 +253,7 @@ export class FeedbackStore {
       const visitorId = await this.state.storage.get(`msg:${repliedId}`);
       if (visitorId) {
         const thread = await this.getThread(visitorId);
-        thread.messages.push({ from: "owner", text: replyText, ts: Date.now() });
-        thread.updatedAt = Date.now();
+        this.appendMessage(thread, { from: "owner", text: replyText, ts: Date.now() });
         await this.state.storage.put(`thread:${visitorId}`, thread);
         // Map your reply's message id to the visitor too, so the conversation
         // can continue if they reply to your reply.
