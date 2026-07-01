@@ -85,7 +85,11 @@ function subscribeMobile(cb) {
   return () => mobileQuery.removeEventListener("change", cb);
 }
 export function useIsMobile() {
-  return useSyncExternalStore(subscribeMobile, () => mobileQuery.matches);
+  return useSyncExternalStore(
+    subscribeMobile,
+    () => mobileQuery.matches,
+    () => false
+  );
 }
 
 // Make horizontal scrubbing exclusive: once a touch gesture is judged to be
