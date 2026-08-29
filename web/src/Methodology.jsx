@@ -220,24 +220,26 @@ export default function Methodology() {
           </li>
         </ul>
 
-        <h3>Chart 1: The aggregated debt</h3>
+        <h3>Chart 1: The cost of the interest on the debt</h3>
         <p>
-          To turn individual auctions into the debt-over-time chart, we treat
-          each security's <i>Total Accepted</i> amount as outstanding on every
-          day between its <i>Issue Date</i> and <i>Maturity Date</i>. For a given
-          day, the total debt is simply the sum of every security whose life span
-          covers that day, split into the four term brackets described above.
+          To turn individual auctions into a chart over time, we treat each
+          security as outstanding on every day between its <i>Issue Date</i> and{" "}
+          <i>Maturity Date</i>. For a given day, the interest cost is the sum
+          over every security whose life span covers that day of{" "}
+          <code>amount × rate</code> (the annual coupon), where{" "}
+          <code>rate</code> is the security's interest rate for notes and bonds,
+          or its high investment rate for bills, split into the four term
+          brackets described above. TIPS are handled separately because their
+          coupon is paid on an inflation-adjusted principal, so we scale their
+          interest by the Treasury reference-CPI index ratio on each date.
         </p>
 
-        <h3>Chart 2: The cost of the interest on the debt</h3>
+        <h3>Chart 2: The aggregated debt</h3>
         <p>
-          The interest cost is computed the same way as above, but instead of adding the
-          face amount we add <code>amount × rate</code> (the annual coupon), where{" "}
-          <code>rate</code> is the security's interest rate for notes and bonds,
-          or its high investment rate for bills. TIPS are handled separately
-          because their coupon is paid on an inflation-adjusted principal, so we
-          scale their interest by the Treasury reference-CPI index ratio on each
-          date.
+          The total debt is computed the same way as above, but instead of the
+          annual coupon we add each security's <i>Total Accepted</i> face
+          amount. For a given day, the total debt is simply the sum of every
+          security whose life span covers that day.
         </p>
 
         <h3>Chart 3: Interest rate at issuance</h3>

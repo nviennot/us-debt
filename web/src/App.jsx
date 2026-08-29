@@ -448,17 +448,6 @@ function App() {
         Based on {results.num_auctions.toLocaleString()} Treasury auction results<br/>
       </p>
       <StackedChart
-        title="Marketable US Treasury debt"
-        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(debtData).toFixed(2)}T</b></>}
-        data={debtData}
-        unit="T"
-        decimals={2}
-        yTicks={debtTicks}
-        yDomain={[0, 32]}
-        caption={<>Marketable debt is ~98% of US debt held by the public<br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
-      />
-
-      <StackedChart
         title="Annual US debt interest cost"
         subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(interestData).toFixed(0)}B</b></>}
         data={interestData}
@@ -467,6 +456,17 @@ function App() {
         yTicks={interestTicks}
         yDomain={[0, 1000]}
         caption={<>Observation: <b style={{ color: '#e55' }}>The interest cost has tripled between 2022 and 2025</b><br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
+      />
+
+      <StackedChart
+        title="Marketable US Treasury debt"
+        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(debtData).toFixed(2)}T</b></>}
+        data={debtData}
+        unit="T"
+        decimals={2}
+        yTicks={debtTicks}
+        yDomain={[0, 32]}
+        caption={<>Marketable debt is ~98% of US debt held by the public<br />Source: {TREASURY_SOURCE} · {SOURCE_CODE}</>}
       />
 
       <LineRateChart
