@@ -16,24 +16,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.13"
+          enable-cache: true
 
       - name: Install dependencies
-        run: pip install .
+        run: uv sync --locked
 
       - name: Download data
-        run: python download.py
+        run: uv run python download.py
+
+      - name: Compile results.json
+        run: uv run python compile.py
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain)" ]; then
-            git add -A
+          git add data results.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
             git commit -m "Weekly data update: $(date -u +%Y-%m-%d)"
             git push
-          else
-            echo "No changes to commit"
           fi

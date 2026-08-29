@@ -3,6 +3,11 @@ name: Deploy website to GitHub Pages
 on:
   push:
     branches: [main]
+  # Pushes made by the weekly job use GITHUB_TOKEN, which does not trigger
+  # `push` workflows, so chain off that workflow's completion instead.
+  workflow_run:
+    workflows: ["Weekly data update"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +23,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
 
