@@ -263,6 +263,28 @@ header p {
   -webkit-tap-highlight-color: transparent;
 }
 
+.chart-range-toggle {
+  display: flex;
+  width: fit-content;
+  margin: 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(15, 17, 21, 0.90);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chart-range-toggle input {
+  margin: 0;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
 .chart-legend {
   position: absolute;
   top: 16px;
@@ -537,4 +559,3 @@ header p {
 .suggestion-error {
   color: #f87171;
 }
-

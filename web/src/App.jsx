@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   AreaChart,
   Area,
@@ -47,6 +47,19 @@ function seriesData(yKey, scale) {
 }
 
 const fmtYear = (date) => date.slice(0, 4);
+const quarter = (date) => Math.ceil(Number(date.slice(5, 7)) / 3);
+const fmtQuarter = (date) => `${fmtYear(date)} Q${quarter(date)}`;
+
+function QuarterTick({ x, y, payload }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text transform="rotate(-45)" textAnchor="end" dy="0.71em" fontSize={12} fill="#9aa3b2">
+        <tspan>{fmtYear(payload.value)}</tspan>
+        <tspan fill="#737b89">{` Q${quarter(payload.value)}`}</tspan>
+      </text>
+    </g>
+  );
+}
 
 // Turn a chart title into a URL-safe anchor id, e.g. "Annual US debt interest
 // cost" -> "annual-us-debt-interest-cost".
@@ -173,12 +186,21 @@ function useDismissTooltipsOnScroll() {
 // First sampled date of each year, used as explicit x-axis ticks.
 // On mobile, thin to every `step`th year so labels don't crowd. Anchored
 // from the end so the most recent year is always labeled.
-function yearTicks(step = 1) {
-  const firstOfYear = results.x.filter(
-    (date, i) => i === 0 || date.slice(0, 4) !== results.x[i - 1].slice(0, 4)
-  );
+function yearTicks(data, step = 1) {
+  const firstOfYear = data
+    .filter((row, i) => i === 0 || fmtYear(row.date) !== fmtYear(data[i - 1].date))
+    .map((row) => row.date);
   const last = firstOfYear.length - 1;
   return firstOfYear.filter((_, i) => (last - i) % step === 0);
+}
+
+// First sampled date of each quarter, used as explicit x-axis ticks.
+function quarterTicks(data) {
+  return data
+    .filter((row, i) => i === 0 ||
+      fmtYear(row.date) !== fmtYear(data[i - 1].date) ||
+      quarter(row.date) !== quarter(data[i - 1].date))
+    .map((row) => row.date);
 }
 
 // Tooltip styled like the legend, in label order (top of stack first).
@@ -257,10 +279,33 @@ function Legend({ extras = [] }) {
   );
 }
 
+function useChartRange(data) {
+  const [since2000, setSince2000] = useState(false);
+  const startDate = since2000 ? "2000-01-01" : "2022-01-01";
+  const today = new Date().toISOString().slice(0, 10);
+  const visibleData = data.filter(({ date }) => date >= startDate && date <= today);
+  return { since2000, setSince2000, visibleData };
+}
+
+function ChartRangeToggle({ title, checked, onChange }) {
+  return (
+    <label className="chart-range-toggle">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        aria-label={`Since 2000 for ${title}`}
+      />
+      Since 2000
+    </label>
+  );
+}
+
 function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain }) {
   const Tip = makeTooltip(unit, decimals);
   const isMobile = useIsMobile();
   const scrubRef = useHorizontalScrubLock();
+  const { since2000, setSince2000, visibleData } = useChartRange(data);
   return (
     <div className="chart-panel">
       <ChartTitle title={title} />
@@ -268,17 +313,19 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
       <div className="chart-area" ref={scrubRef}>
         <Legend />
         <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
-          <AreaChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
+          <AreaChart data={visibleData} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={(date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
-              ticks={yearTicks(isMobile ? 2 : 1)}
-              interval={0}
+              tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
+              ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
+              tick={since2000 ? undefined : <QuarterTick />}
+              interval={since2000 ? 0 : "preserveStartEnd"}
+              fontSize={since2000 ? undefined : 12}
               stroke="#9aa3b2"
               angle={-45}
               textAnchor="end"
-              height={50}
+              height={since2000 ? 50 : 70}
             />
             <YAxis
               orientation="right"
@@ -312,6 +359,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      <ChartRangeToggle title={title} checked={since2000} onChange={setSince2000} />
       {caption && (
         <>
           <hr className="chart-divider" />
@@ -327,23 +375,26 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
   const Tip = makeTooltip("%", 2, false, extras);
   const isMobile = useIsMobile();
   const scrubRef = useHorizontalScrubLock();
+  const { since2000, setSince2000, visibleData } = useChartRange(data);
   return (
     <div className="chart-panel rate-panel">
       <ChartTitle title={title} />
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
         <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
-          <LineChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
+          <LineChart data={visibleData} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={(date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
-              ticks={yearTicks(isMobile ? 2 : 1)}
-              interval={0}
+              tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
+              ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
+              tick={since2000 ? undefined : <QuarterTick />}
+              interval={since2000 ? 0 : "preserveStartEnd"}
+              fontSize={since2000 ? undefined : 12}
               stroke="#9aa3b2"
               angle={-45}
               textAnchor="end"
-              height={50}
+              height={since2000 ? 50 : 70}
             />
             <YAxis
               orientation="right"
@@ -381,6 +432,7 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <ChartRangeToggle title={title} checked={since2000} onChange={setSince2000} />
       {caption && (
         <>
           <hr className="chart-divider" />
@@ -449,7 +501,7 @@ function App() {
       </p>
       <StackedChart
         title="Annual US debt interest cost"
-        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(interestData).toFixed(0)}B</b></>}
+        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${(latestTotal(interestData) / 1000).toFixed(3)}T</b></>}
         data={interestData}
         unit="B"
         decimals={1}
