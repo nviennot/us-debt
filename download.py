@@ -179,7 +179,16 @@ def main():
             json.dump(records, f)
         print(f"{year}: downloaded {len(records)} records -> {path}")
 
-    download_cpi(refresh_all=args.refresh_all)
+    try:
+        download_cpi(refresh_all=args.refresh_all)
+    except urllib.error.HTTPError as e:
+        if e.code != 503:
+            raise
+        print("Warning: BLS CPI-U service unavailable (HTTP 503); skipping CPI-U update.")
+        if os.path.exists(CPI_CACHE):
+            print(f"Keeping existing CPI-U data: {CPI_CACHE}")
+        else:
+            print("No cached CPI-U data is available.")
     download_fed_funds()
 
     print(f"Done. Data in {DATA_DIR}")
