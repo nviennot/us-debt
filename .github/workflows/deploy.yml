@@ -3,10 +3,10 @@ name: Deploy website to GitHub Pages
 on:
   push:
     branches: [main]
-  # Pushes made by the weekly job use GITHUB_TOKEN, which does not trigger
+  # Pushes made by the daily job use GITHUB_TOKEN, which does not trigger
   # `push` workflows, so chain off that workflow's completion instead.
   workflow_run:
-    workflows: ["Weekly data update"]
+    workflows: ["Daily data update"]
     types: [completed]
   workflow_dispatch:
 
