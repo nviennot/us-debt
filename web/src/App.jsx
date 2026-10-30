@@ -279,14 +279,6 @@ function Legend({ extras = [] }) {
   );
 }
 
-function useChartRange(data) {
-  const [since2000, setSince2000] = useState(false);
-  const startDate = since2000 ? "2000-01-01" : "2022-01-01";
-  const today = new Date().toISOString().slice(0, 10);
-  const visibleData = data.filter(({ date }) => date >= startDate && date <= today);
-  return { since2000, setSince2000, visibleData };
-}
-
 function ChartRangeToggle({ title, checked, onChange }) {
   return (
     <label className="chart-range-toggle">
@@ -294,18 +286,17 @@ function ChartRangeToggle({ title, checked, onChange }) {
         type="checkbox"
         checked={checked}
         onChange={(event) => onChange(event.target.checked)}
-        aria-label={`Since 2000 for ${title}`}
+        aria-label={`Last 5 years for ${title}`}
       />
-      Since 2000
+      Last 5 years
     </label>
   );
 }
 
-function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain }) {
+function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, yDomain, last5Years, onRangeChange }) {
   const Tip = makeTooltip(unit, decimals);
   const isMobile = useIsMobile();
   const scrubRef = useHorizontalScrubLock();
-  const { since2000, setSince2000, visibleData } = useChartRange(data);
   return (
     <div className="chart-panel">
       <ChartTitle title={title} />
@@ -313,19 +304,19 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
       <div className="chart-area" ref={scrubRef}>
         <Legend />
         <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
-          <AreaChart data={visibleData} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
+          <AreaChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
-              ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
-              tick={since2000 ? undefined : <QuarterTick />}
-              interval={since2000 || !isMobile ? 0 : "equidistantPreserveStart"}
-              fontSize={since2000 ? undefined : 12}
+              tickFormatter={last5Years ? fmtQuarter : (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
+              ticks={last5Years ? quarterTicks(data) : yearTicks(data, isMobile ? 2 : 1)}
+              tick={last5Years ? <QuarterTick /> : undefined}
+              interval={!last5Years || !isMobile ? 0 : "equidistantPreserveStart"}
+              fontSize={last5Years ? 12 : undefined}
               stroke="#9aa3b2"
               angle={-45}
               textAnchor="end"
-              height={since2000 ? 50 : 70}
+              height={last5Years ? 70 : 50}
             />
             <YAxis
               orientation="right"
@@ -359,7 +350,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <ChartRangeToggle title={title} checked={since2000} onChange={setSince2000} />
+      <ChartRangeToggle title={title} checked={last5Years} onChange={onRangeChange} />
       {caption && (
         <>
           <hr className="chart-divider" />
@@ -370,31 +361,30 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
   );
 }
 
-function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
+function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain, last5Years, onRangeChange }) {
   const extras = [{ label: FED_LABEL, color: FED_COLOR }];
   const Tip = makeTooltip("%", 2, false, extras);
   const isMobile = useIsMobile();
   const scrubRef = useHorizontalScrubLock();
-  const { since2000, setSince2000, visibleData } = useChartRange(data);
   return (
     <div className="chart-panel rate-panel">
       <ChartTitle title={title} />
       {subtitle && <div className="chart-subtitle">{subtitle}</div>}
       <div className="chart-area" ref={scrubRef}>
         <ResponsiveContainer width="100%" height={isMobile ? 300 : 420}>
-          <LineChart data={visibleData} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
+          <LineChart data={data} margin={isMobile ? { top: 10, right: 4, left: 4, bottom: 0 } : { top: 10, right: 8, left: 34, bottom: 0 }}>
             <CartesianGrid stroke="#2a2f3a" strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
-              ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
-              tick={since2000 ? undefined : <QuarterTick />}
-              interval={since2000 || !isMobile ? 0 : "equidistantPreserveStart"}
-              fontSize={since2000 ? undefined : 12}
+              tickFormatter={last5Years ? fmtQuarter : (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date))}
+              ticks={last5Years ? quarterTicks(data) : yearTicks(data, isMobile ? 2 : 1)}
+              tick={last5Years ? <QuarterTick /> : undefined}
+              interval={!last5Years || !isMobile ? 0 : "equidistantPreserveStart"}
+              fontSize={last5Years ? 12 : undefined}
               stroke="#9aa3b2"
               angle={-45}
               textAnchor="end"
-              height={since2000 ? 50 : 70}
+              height={last5Years ? 70 : 50}
             />
             <YAxis
               orientation="right"
@@ -432,7 +422,7 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <ChartRangeToggle title={title} checked={since2000} onChange={setSince2000} />
+      <ChartRangeToggle title={title} checked={last5Years} onChange={onRangeChange} />
       {caption && (
         <>
           <hr className="chart-divider" />
@@ -502,6 +492,12 @@ const SOURCE_CODE = (
 
 function App() {
   useDismissTooltipsOnScroll();
+  const [last5Years, setLast5Years] = useState(false);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  now.setUTCFullYear(now.getUTCFullYear() - 5);
+  const startDate = last5Years ? now.toISOString().slice(0, 10) : "2000-01-01";
+  const inRange = ({ date }) => date >= startDate && date <= today;
   const debtData = seriesData("debt", 1e12); // trillions
   const interestData = seriesData("interest_cost", 1e9); // billions/year
   const issueRateData = seriesData("issue_rate", 1).map((row, i) => ({
@@ -530,7 +526,9 @@ function App() {
             <YearChange data={interestData} scale={1e9} current={latest.interest_cost} yearAgoDate={yearAgoDate} unit="B" decimals={0} />
           </>
         }
-        data={interestData}
+        data={interestData.filter(inRange)}
+        last5Years={last5Years}
+        onRangeChange={setLast5Years}
         unit="B"
         decimals={1}
         yTicks={interestTicks}
@@ -546,7 +544,9 @@ function App() {
             <YearChange data={debtData} scale={1e12} current={latest.debt} yearAgoDate={yearAgoDate} unit="T" decimals={2} />
           </>
         }
-        data={debtData}
+        data={debtData.filter(inRange)}
+        last5Years={last5Years}
+        onRangeChange={setLast5Years}
         unit="T"
         decimals={2}
         yTicks={debtTicks}
@@ -557,7 +557,9 @@ function App() {
       <LineRateChart
         title="Interest rate at issuance vs. fed funds rate"
         subtitle={<>as of {latest.date} fed funds rate is <b className="subtitle-value-white">{latest.fed_rate.toFixed(2)}%</b></>}
-        data={issueRateData}
+        data={issueRateData.filter(inRange)}
+        last5Years={last5Years}
+        onRangeChange={setLast5Years}
         yTicks={rateTicks}
         yDomain={[0, 5.5]}
         caption={<>Sources: {TREASURY_SOURCE} and {FRED_SOURCE} · {SOURCE_CODE}</>}
