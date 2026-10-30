@@ -496,11 +496,33 @@ function App() {
     fed_rate: results.fed_rate[results.fed_rate.length - 1],
   };
 
+  // Year-over-year change in annual interest cost, comparing the latest snapshot
+  // to the most recent weekly sample on or before the same date one year earlier.
+  const yearAgoDate = `${Number(latest.date.slice(0, 4)) - 1}${latest.date.slice(4)}`;
+  const yearAgoRow = interestData.filter((row) => row.date <= yearAgoDate).pop();
+  const yearAgoCost = yearAgoRow
+    ? results.labels.reduce((sum, label) => sum + (yearAgoRow[label] ?? 0), 0) * 1e9
+    : null;
+  const interestDelta = yearAgoCost ? latest.interest_cost - yearAgoCost : null;
+
   return (
     <div className="container">
       <StackedChart
         title="Annual US debt interest cost"
-        subtitle={<>as of {latest.date}: <b className="subtitle-value-white">${(latest.interest_cost / 1e12).toFixed(3)}T</b></>}
+        subtitle={
+          <>
+            as of {latest.date}: <b className="subtitle-value-white">${(latest.interest_cost / 1e12).toFixed(3)}T</b>
+            {interestDelta != null && (
+              <>
+                <br />
+                1Y {interestDelta >= 0 ? "increase" : "decrease"}:{" "}
+                <b className="subtitle-value-white">
+                  {interestDelta >= 0 ? "+" : "-"}${Math.abs(interestDelta / 1e9).toFixed(0)}B ({Math.abs((interestDelta / yearAgoCost) * 100).toFixed(0)}%)
+                </b>
+              </>
+            )}
+          </>
+        }
         data={interestData}
         unit="B"
         decimals={1}
