@@ -26,6 +26,7 @@ the shared x dates):
     "interest_cost": [[...W...], ...],          # annual interest cost, dollars/year
     "issue_rate": [[...W...], ...],             # coupon rate of that week's issues, %
     "fed_rate":   [...W...],                     # federal funds effective rate, %
+    "latest": {date, debt, interest_cost, fed_rate}, # download-day headline totals
     "term_hist":  {counts, edges, brackets},     # histogram of bond terms (years)
   }
 
@@ -41,6 +42,7 @@ import glob
 import json
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -102,6 +104,17 @@ def load_cpi():
         )
     with open(CPI_CACHE) as f:
         return {tuple(int(p) for p in k.split("-")): v for k, v in json.load(f).items()}
+
+
+def load_as_of_date(data):
+    """Use the download date, or the latest auction record for older caches."""
+    path = os.path.join(DATA_DIR, "download_metadata.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            date_str = json.load(f)["downloaded_date"]
+    else:
+        date_str = max(row["record_date"] for row in data)
+    return datetime.strptime(date_str, "%Y-%m-%d")
 
 
 def load_fed_funds():
@@ -335,10 +348,11 @@ def main():
     tips_mask = df["inflation_index_security"] == "Yes"
     interest_non_tips = compute_daily_interest(df[~tips_mask])
 
-    today = datetime.today()
+    today = datetime.now(ZoneInfo("America/New_York"))
+    as_of = load_as_of_date(data)
     week_dates = []
     d = SAMPLE_START
-    while d <= today:
+    while d <= as_of:
         week_dates.append(d)
         d += timedelta(weeks=1)
 
@@ -351,7 +365,19 @@ def main():
     issue_rate = compute_weekly_issue_rate(df, week_dates)
 
     # Federal funds effective rate sampled at each week.
-    fed_rate = sample_fed_funds(load_fed_funds(), week_dates)
+    fed = load_fed_funds()
+    fed_rate = sample_fed_funds(fed, week_dates)
+
+    # Headline totals use the download day rather than the last weekly sample.
+    latest_i = (as_of - START_DAY).days
+    latest_interest = interest_non_tips[:, latest_i].sum()
+    latest_interest += compute_tips_interest_sampled(df[tips_mask], [as_of], cpi).sum()
+    latest = {
+        "date": as_of.strftime("%Y-%m-%d"),
+        "debt": int(debt[:, latest_i].sum()),
+        "interest_cost": float(latest_interest),
+        "fed_rate": sample_fed_funds(fed, [as_of])[0],
+    }
 
     # Histogram of bond terms (years) across auctions, for the term breakdown.
     term_hist_counts, term_hist_edges = compute_term_histogram(df)
@@ -369,6 +395,7 @@ def main():
         "interest_cost": [sampled_interest[i].tolist() for i in range(len(brackets))],
         "issue_rate": jsonable(issue_rate),
         "fed_rate": fed_rate,
+        "latest": latest,
         "term_hist": {
             "counts": term_hist_counts.tolist(),
             "edges": term_hist_edges.tolist(),
@@ -379,11 +406,9 @@ def main():
     with open(OUTPUT, "w") as f:
         json.dump(results, f)
 
-    total = sampled[:, -1].sum()
-    total_interest = sampled_interest[:, -1].sum()
     print(f"Wrote {OUTPUT}: {len(week_dates)} weeks, {len(brackets_labels)} brackets")
-    print(f"Latest week {week_dates[-1]:%Y-%m-%d}: ${total / 1e12:.4} trillion total")
-    print(f"Latest week {week_dates[-1]:%Y-%m-%d}: ${total_interest / 1e9:.4} billion/year interest")
+    print(f"As of {as_of:%Y-%m-%d}: ${latest['debt'] / 1e12:.4} trillion total")
+    print(f"As of {as_of:%Y-%m-%d}: ${latest['interest_cost'] / 1e9:.4} billion/year interest")
 
 
 if __name__ == "__main__":

@@ -488,8 +488,13 @@ function App() {
     [FED_LABEL]: results.fed_rate[i],
   })); // percent, plus the fed funds rate overlay
 
-  // Most recent date in the dataset.
-  const latestDate = results.x[results.x.length - 1];
+  // Daily headline snapshot; older results files only have weekly samples.
+  const latest = results.latest ?? {
+    date: results.x[results.x.length - 1],
+    debt: latestTotal(debtData) * 1e12,
+    interest_cost: latestTotal(interestData) * 1e9,
+    fed_rate: results.fed_rate[results.fed_rate.length - 1],
+  };
 
   return (
     <div className="container">
@@ -501,7 +506,7 @@ function App() {
       </p>
       <StackedChart
         title="Annual US debt interest cost"
-        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${(latestTotal(interestData) / 1000).toFixed(3)}T</b></>}
+        subtitle={<>as of {latest.date}: <b className="subtitle-value-white">${(latest.interest_cost / 1e12).toFixed(3)}T</b></>}
         data={interestData}
         unit="B"
         decimals={1}
@@ -512,7 +517,7 @@ function App() {
 
       <StackedChart
         title="Marketable US Treasury debt"
-        subtitle={<>as of {latestDate}: <b className="subtitle-value-white">${latestTotal(debtData).toFixed(2)}T</b></>}
+        subtitle={<>as of {latest.date}: <b className="subtitle-value-white">${(latest.debt / 1e12).toFixed(2)}T</b></>}
         data={debtData}
         unit="T"
         decimals={2}
@@ -523,7 +528,7 @@ function App() {
 
       <LineRateChart
         title="Interest rate at issuance vs. fed funds rate"
-        subtitle={<>as of {latestDate} fed funds rate is <b className="subtitle-value-white">{results.fed_rate[results.fed_rate.length - 1].toFixed(2)}%</b></>}
+        subtitle={<>as of {latest.date} fed funds rate is <b className="subtitle-value-white">{latest.fed_rate.toFixed(2)}%</b></>}
         data={issueRateData}
         yTicks={rateTicks}
         yDomain={[0, 5.5]}

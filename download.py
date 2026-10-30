@@ -20,7 +20,8 @@ import os
 import time
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 try:
     # Matches the notebook: use the OS trust store for SSL verification.
@@ -120,7 +121,7 @@ def download_cpi(refresh_all=False):
         with open(CPI_CACHE) as f:
             cpi = {tuple(int(p) for p in k.split("-")): v for k, v in json.load(f).items()}
 
-    current_year = date.today().year
+    current_year = datetime.now(ZoneInfo("America/New_York")).year
     needed = set(range(CPI_START_YEAR, current_year + 1))
     have = {y for (y, _) in cpi}
     to_fetch = (needed - have) | {current_year, current_year - 1}
@@ -164,7 +165,7 @@ def main():
     args = parser.parse_args()
 
     os.makedirs(DATA_DIR, exist_ok=True)
-    current_year = date.today().year
+    current_year = datetime.now(ZoneInfo("America/New_York")).year
 
     for year in range(START_YEAR, current_year + 1):
         path = os.path.join(DATA_DIR, f"auctions_{year}.json")
@@ -190,6 +191,10 @@ def main():
         else:
             print("No cached CPI-U data is available.")
     download_fed_funds()
+
+    # Record the Eastern refresh date so a later compile uses the same day.
+    with open(os.path.join(DATA_DIR, "download_metadata.json"), "w") as f:
+        json.dump({"downloaded_date": datetime.now(ZoneInfo("America/New_York")).date().isoformat()}, f)
 
     print(f"Done. Data in {DATA_DIR}")
 

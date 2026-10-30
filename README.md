@@ -36,6 +36,10 @@ This fetches three datasets into `data/`:
   (from the BLS API).
 - **Federal funds effective rate** — `data/fed_funds.json` (FRED series `DFF`).
 
+After a successful download, `data/download_metadata.json` records the download
+date for compilation. Download and compilation dates use US Eastern time
+(`America/New_York`, EST/EDT).
+
 ### 3. Compile the results
 
 ```sh
@@ -50,6 +54,13 @@ This reads everything in `data/` and writes `results.json`, a weekly time series
   for inflation
 - `issue_rate` — amount-weighted coupon rate of that period's issuance (%)
 - `fed_rate` — federal funds effective rate (%)
+
+The `latest` object contains the download-day `date`, total `debt` (dollars),
+total `interest_cost` (dollars/year, including inflation-adjusted TIPS), and
+`fed_rate` (the latest available rate on or before that date). The web app uses
+this daily snapshot for its “as of” headings while the graphs stay weekly.
+For older caches without download metadata, compilation uses the latest auction
+record date.
 
 ### 4. Launch the web server
 
