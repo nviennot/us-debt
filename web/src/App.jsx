@@ -320,7 +320,7 @@ function StackedChart({ title, subtitle, caption, data, unit, decimals, yTicks, 
               tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
               ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
               tick={since2000 ? undefined : <QuarterTick />}
-              interval={since2000 || !isMobile ? 0 : "preserveStartEnd"}
+              interval={since2000 || !isMobile ? 0 : "equidistantPreserveStart"}
               fontSize={since2000 ? undefined : 12}
               stroke="#9aa3b2"
               angle={-45}
@@ -389,7 +389,7 @@ function LineRateChart({ title, subtitle, caption, data, yTicks, yDomain }) {
               tickFormatter={since2000 ? (date) => (isMobile && (fmtYear(date) === "2000" || fmtYear(date) === "2001") ? "" : fmtYear(date)) : fmtQuarter}
               ticks={since2000 ? yearTicks(visibleData, isMobile ? 2 : 1) : quarterTicks(visibleData)}
               tick={since2000 ? undefined : <QuarterTick />}
-              interval={since2000 || !isMobile ? 0 : "preserveStartEnd"}
+              interval={since2000 || !isMobile ? 0 : "equidistantPreserveStart"}
               fontSize={since2000 ? undefined : 12}
               stroke="#9aa3b2"
               angle={-45}
@@ -498,12 +498,6 @@ function App() {
 
   return (
     <div className="container">
-      <header>
-        <h1>US Debt Watch</h1>
-      </header>
-      <p className="compiled-note">
-        Based on {results.num_auctions.toLocaleString()} Treasury auction results<br/>
-      </p>
       <StackedChart
         title="Annual US debt interest cost"
         subtitle={<>as of {latest.date}: <b className="subtitle-value-white">${(latest.interest_cost / 1e12).toFixed(3)}T</b></>}

@@ -101,6 +101,10 @@ header p {
   margin: 36px 0px;
 }
 
+.container > .chart-panel:first-child {
+  margin-top: 0;
+}
+
 .chart-title {
   text-align: center;
   font-size: 20px;
