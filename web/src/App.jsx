@@ -453,6 +453,27 @@ function latestTotal(data) {
   return results.labels.reduce((sum, label) => sum + (row[label] ?? 0), 0);
 }
 
+// Subtitle line showing the 1-year change, comparing the latest snapshot
+// (`current`, raw dollars) to the most recent weekly sample on or before
+// `yearAgoDate`. `data` rows are in display units of `scale`.
+function YearChange({ data, scale, current, yearAgoDate, unit, decimals }) {
+  const row = data.filter((r) => r.date <= yearAgoDate).pop();
+  if (!row) return null;
+  const yearAgo = results.labels.reduce((sum, label) => sum + (row[label] ?? 0), 0) * scale;
+  if (!yearAgo) return null;
+  const delta = current - yearAgo;
+  const up = delta >= 0;
+  return (
+    <>
+      <br />
+      1Y {up ? "increase" : "decrease"}:{" "}
+      <b className="subtitle-value-white">
+        {up ? "+" : "-"}${Math.abs(delta / scale).toFixed(decimals)}{unit} ({Math.abs((delta / yearAgo) * 100).toFixed(0)}%)
+      </b>
+    </>
+  );
+}
+
 const TREASURY_SOURCE = (
   <a
     href="https://fiscaldata.treasury.gov/datasets/treasury-securities-auctions-data/treasury-securities-auctions-data"
@@ -496,14 +517,8 @@ function App() {
     fed_rate: results.fed_rate[results.fed_rate.length - 1],
   };
 
-  // Year-over-year change in annual interest cost, comparing the latest snapshot
-  // to the most recent weekly sample on or before the same date one year earlier.
+  // Same date one year before the latest snapshot, for year-over-year deltas.
   const yearAgoDate = `${Number(latest.date.slice(0, 4)) - 1}${latest.date.slice(4)}`;
-  const yearAgoRow = interestData.filter((row) => row.date <= yearAgoDate).pop();
-  const yearAgoCost = yearAgoRow
-    ? results.labels.reduce((sum, label) => sum + (yearAgoRow[label] ?? 0), 0) * 1e9
-    : null;
-  const interestDelta = yearAgoCost ? latest.interest_cost - yearAgoCost : null;
 
   return (
     <div className="container">
@@ -512,15 +527,7 @@ function App() {
         subtitle={
           <>
             as of {latest.date}: <b className="subtitle-value-white">${(latest.interest_cost / 1e12).toFixed(3)}T</b>
-            {interestDelta != null && (
-              <>
-                <br />
-                1Y {interestDelta >= 0 ? "increase" : "decrease"}:{" "}
-                <b className="subtitle-value-white">
-                  {interestDelta >= 0 ? "+" : "-"}${Math.abs(interestDelta / 1e9).toFixed(0)}B ({Math.abs((interestDelta / yearAgoCost) * 100).toFixed(0)}%)
-                </b>
-              </>
-            )}
+            <YearChange data={interestData} scale={1e9} current={latest.interest_cost} yearAgoDate={yearAgoDate} unit="B" decimals={0} />
           </>
         }
         data={interestData}
@@ -533,7 +540,12 @@ function App() {
 
       <StackedChart
         title="Marketable US Treasury debt"
-        subtitle={<>as of {latest.date}: <b className="subtitle-value-white">${(latest.debt / 1e12).toFixed(2)}T</b></>}
+        subtitle={
+          <>
+            as of {latest.date}: <b className="subtitle-value-white">${(latest.debt / 1e12).toFixed(2)}T</b>
+            <YearChange data={debtData} scale={1e12} current={latest.debt} yearAgoDate={yearAgoDate} unit="T" decimals={2} />
+          </>
+        }
         data={debtData}
         unit="T"
         decimals={2}
