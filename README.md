@@ -31,7 +31,8 @@ uv run python download.py
 This fetches three datasets into `data/`:
 
 - **Treasury auction results** — partitioned by year into `data/auctions_YYYY.json`
-  (from the Treasury Fiscal Data API, starting in 1979).
+  (from the Treasury Fiscal Data API, starting in 1979, supplemented with recent
+  TreasuryDirect results).
 - **CPI-U history** — `data/cpi_u.json`, used for TIPS inflation indexing
   (from the BLS API).
 - **Federal funds effective rate** — `data/fed_funds.json` (FRED series `DFF`).
@@ -39,6 +40,31 @@ This fetches three datasets into `data/`:
 After a successful download, `data/download_metadata.json` records the download
 date for compilation. Download and compilation dates use US Eastern time
 (`America/New_York`, EST/EDT).
+
+The current and previous auction years are refreshed each run; older years are
+cached. Use `uv run python download.py --refresh-all` to fetch all years again.
+
+#### Getting current auction results
+
+Fiscal Data can respond successfully while its auction results are stale. On
+November 10, 2026, it still had missing accepted amounts for issues from October
+22 onward. TreasuryDirect's own search endpoint supplied those results:
+
+```text
+https://www.treasurydirect.gov/TA_WS/securities/search?format=json&issueDate=2026-01-01,2026-12-31
+```
+
+No API key is needed. `download.py` queries this endpoint for the current and
+previous issue years and fills missing Fiscal Data fields, adding absent auctions.
+It matches on **CUSIP + issue date** because a security can be reopened multiple
+times. `grandTotalParAwarded` maps to `total_accepted` (including SOMA awards),
+`interestRate` to `int_rate`, `investmentRate` to `high_investment_rate`, and
+`referenceCpiOnOriginalDatedDate` to the TIPS base CPI. Future announcements keep
+their missing amounts until results are published.
+
+Use the `issueDate` range filter: `auctionDate` is not the search API's auction
+date field. The website's `/securities/auctioned` endpoint is a limited list of
+unmatured securities, so it is insufficient for rebuilding historical issuance.
 
 ### 3. Compile the results
 

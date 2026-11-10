@@ -8,8 +8,9 @@ Three datasets are fetched:
   * Federal funds effective rate (FRED series DFF) into ``data/fed_funds.json``.
 
 This makes the script safe to run on a daily basis:
-  * Past years never change, so once downloaded their files are skipped.
-  * The current year is always re-downloaded, picking up the latest auctions.
+  * Years before the previous year are cached once downloaded.
+  * The current and previous year are refreshed, including TreasuryDirect
+    results that have not yet reached Fiscal Data.
 
 Pass --refresh-all to force a full re-download of every year.
 """
@@ -31,6 +32,7 @@ except ImportError:
     pass
 
 BASE_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query"
+TREASURYDIRECT_URL = "https://www.treasurydirect.gov/TA_WS/securities/search"
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
 # The auction dataset starts in 1979.
@@ -87,6 +89,71 @@ def fetch_year(year):
         records += d["data"]
         params = d["links"]["next"]
     return records
+
+
+def fetch_treasurydirect_year(year):
+    """Fetch all issues in a year, including results and pending announcements.
+
+    Unlike /auctioned (a limited list of unmatured securities), /search includes
+    matured bills too. Filter by issueDate; auctionDate is not a supported filter.
+    """
+    rows = get_json(
+        f"{TREASURYDIRECT_URL}?format=json&issueDate={year}-01-01,{year}-12-31"
+    )
+    if not isinstance(rows, list):
+        raise ValueError("Unexpected TreasuryDirect response: expected a list")
+    fields = {
+        "cusip": "cusip",
+        "security_type": "securityType",
+        "security_term": "securityTerm",
+        "auction_date": "competitiveAuctionCloseDate",
+        "issue_date": "issueDate",
+        "maturity_date": "maturityDate",
+        # Grand total includes SOMA awards, just like Fiscal Data total_accepted.
+        "total_accepted": "grandTotalParAwarded",
+        "int_rate": "interestRate",
+        "high_investment_rate": "investmentRate",
+        "inflation_index_security": "inflationProtected",
+        "ref_cpi_on_dated_date": "referenceCpiOnOriginalDatedDate",
+        "floating_rate": "floatingRate",
+        "pdf_filenm_comp_results": "treasuryAuctionResultsPressReleaseFileName",
+        "xml_filenm_comp_results": "treasuryAuctionResultsXmlFileName",
+    }
+    records = []
+    for row in rows:
+        record = {target: row[source] or None for target, source in fields.items()}
+        for key in ("auction_date", "issue_date", "maturity_date"):
+            record[key] = datetime.fromisoformat(record[key]).date().isoformat()
+        if int(record["issue_date"][:4]) != year:
+            raise ValueError("TreasuryDirect returned an issue outside the requested year")
+        record["record_date"] = record["issue_date"]
+        # Newer bill records leave this flag blank; only TIPS are indexed.
+        if record["inflation_index_security"] is None:
+            record["inflation_index_security"] = "Yes" if row["type"] == "TIPS" else "No"
+        records.append(record)
+    return records
+
+
+def supplement_auctions(records, supplement):
+    """Fill Fiscal Data gaps without counting reopened CUSIPs twice.
+
+    Keep published Fiscal Data values and fill only missing fields. Announcements
+    retain a null amount so compile.py can still detect incomplete issuance days.
+    """
+    def key(row):
+        return row["cusip"], row["issue_date"]
+
+    merged = {key(row): dict(row) for row in records}
+    for row in supplement:
+        identity = key(row)
+        if identity not in merged:
+            merged[identity] = dict(row)
+        else:
+            existing = merged[identity]
+            for field, value in row.items():
+                if existing.get(field) in (None, "", "null"):
+                    existing[field] = value
+    return sorted(merged.values(), key=lambda row: (row["record_date"], row["cusip"]))
 
 
 def fetch_cpi_range(start_year, end_year):
@@ -160,7 +227,7 @@ def main():
     parser.add_argument(
         "--refresh-all",
         action="store_true",
-        help="re-download every year instead of only the current one",
+        help="re-download every year instead of only the current and previous years",
     )
     args = parser.parse_args()
 
@@ -170,12 +237,19 @@ def main():
     for year in range(START_YEAR, current_year + 1):
         path = os.path.join(DATA_DIR, f"auctions_{year}.json")
 
-        # Past years are immutable: keep them unless asked to refresh everything.
-        if year < current_year and os.path.exists(path) and not args.refresh_all:
+        # Refresh the previous year too, for results published across New Year.
+        if year < current_year - 1 and os.path.exists(path) and not args.refresh_all:
             print(f"{year}: cached")
             continue
 
         records = fetch_year(year)
+        if year >= current_year - 1:
+            supplement = fetch_treasurydirect_year(year)
+            if records and not supplement:
+                raise ValueError(f"TreasuryDirect returned no auctions for {year}")
+            before = len(records)
+            records = supplement_auctions(records, supplement)
+            print(f"{year}: TreasuryDirect checked {len(supplement)} issues, added {len(records) - before}")
         with open(path, "w") as f:
             json.dump(records, f)
         print(f"{year}: downloaded {len(records)} records -> {path}")
