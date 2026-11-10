@@ -26,7 +26,7 @@ the shared x dates):
     "interest_cost": [[...W...], ...],          # annual interest cost, dollars/year
     "issue_rate": [[...W...], ...],             # coupon rate of that week's issues, %
     "fed_rate":   [...W...],                     # federal funds effective rate, %
-    "latest": {date, debt, interest_cost, fed_rate}, # download-day headline totals
+    "latest": {date, debt, interest_cost, fed_rate}, # data-supported headline totals
     "term_hist":  {counts, edges, brackets},     # histogram of bond terms (years)
   }
 
@@ -115,6 +115,35 @@ def load_as_of_date(data):
     else:
         date_str = max(row["record_date"] for row in data)
     return datetime.strptime(date_str, "%Y-%m-%d")
+
+
+def complete_as_of_date(df, downloaded_date):
+    """Cap reporting at the latest date supported by complete auction amounts.
+
+    A fresh download can contain stale results or announcement-only rows. Beyond
+    the last known issuance, maturities would falsely look like debt repayment.
+    Missing amounts on still-outstanding securities also invalidate a snapshot,
+    even when other auctions on that day (or later days) have results. Historical
+    missing amounts on already-matured securities do not block current reporting.
+    """
+    complete = df["total_accepted"].notna()
+    issue_dates = df.loc[complete, "issue_date"].dropna()
+    if issue_dates.empty:
+        raise ValueError("No completed auction amounts available for reporting.")
+
+    as_of = min(downloaded_date, issue_dates.max().to_pydatetime())
+    missing = df[~complete]
+    while True:
+        outstanding = missing[
+            (missing["issue_date"] <= as_of)
+            & (missing["maturity_date"].isna() | (missing["maturity_date"] > as_of))
+        ]
+        if outstanding.empty:
+            return as_of
+        issue_dates = issue_dates[issue_dates < outstanding["issue_date"].min()]
+        if issue_dates.empty:
+            raise ValueError("No complete issuance date available for reporting.")
+        as_of = min(downloaded_date, issue_dates.max().to_pydatetime())
 
 
 def load_fed_funds():
@@ -349,7 +378,7 @@ def main():
     interest_non_tips = compute_daily_interest(df[~tips_mask])
 
     today = datetime.now(ZoneInfo("America/New_York"))
-    as_of = load_as_of_date(data)
+    as_of = complete_as_of_date(df, load_as_of_date(data))
     week_dates = []
     d = SAMPLE_START
     while d <= as_of:
@@ -368,7 +397,7 @@ def main():
     fed = load_fed_funds()
     fed_rate = sample_fed_funds(fed, week_dates)
 
-    # Headline totals use the download day rather than the last weekly sample.
+    # Headline totals use the data-supported day rather than the last weekly sample.
     latest_i = (as_of - START_DAY).days
     latest_interest = interest_non_tips[:, latest_i].sum()
     latest_interest += compute_tips_interest_sampled(df[tips_mask], [as_of], cpi).sum()

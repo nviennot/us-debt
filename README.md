@@ -55,12 +55,17 @@ This reads everything in `data/` and writes `results.json`, a weekly time series
 - `issue_rate` — amount-weighted coupon rate of that period's issuance (%)
 - `fed_rate` — federal funds effective rate (%)
 
-The `latest` object contains the download-day `date`, total `debt` (dollars),
+The `latest` object contains the data-supported `date`, total `debt` (dollars),
 total `interest_cost` (dollars/year, including inflation-adjusted TIPS), and
 `fed_rate` (the latest available rate on or before that date). The web app uses
 this daily snapshot for its “as of” headings while the graphs stay weekly.
-For older caches without download metadata, compilation uses the latest auction
-record date.
+Reporting is capped at the earlier of the download date and the latest issuance
+date with a known accepted amount. If a still-outstanding auction has a missing
+amount, reporting stops at a known issuance date before that gap. This prevents
+stale or incomplete auction results from showing maturities as a false debt
+decline. Historical missing amounts on already-matured securities do not block
+current reporting. For older caches without download metadata, the latest auction
+record date supplies the download-date limit.
 
 ### 4. Launch the web server
 
